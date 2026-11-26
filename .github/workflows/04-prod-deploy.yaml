@@ -97,7 +97,7 @@ jobs:
 
       - name: Show deployed resources
         run: kubectl get deployments,pods,services -n prod -o wide
-
+#
       - name: Smoke test PROD frontend
         run: |
           kubectl port-forward -n prod service/cwvj-frontend 18080:80 &

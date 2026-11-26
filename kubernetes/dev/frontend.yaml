@@ -13,7 +13,7 @@ metadata:
   annotations:
     description: "NGINX frontend for the CWVJ three-tier demo"
 spec:
-  replicas: 4
+  replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: cwvj-mega-project
