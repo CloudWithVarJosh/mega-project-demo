@@ -1,0 +1,27 @@
+name: CWVJ CI | Build, Scan and Publish
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+    paths:
+      - 'cwvj-3tier-mega-project/frontend/**'
+      - 'cwvj-3tier-mega-project/backend/**'
+      - '.github/workflows/**'
+      - 'kubernetes/**'
+
+  workflow_dispatch:
+
+concurrency:
+  group: cwvj-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  workflow-foundation-job:
+    name: Workflow Foundation
+    runs-on: ubuntu-26.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v7

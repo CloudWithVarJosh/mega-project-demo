@@ -1,0 +1,19 @@
+# Git
+.git
+.gitignore
+
+# Maven build output, except the JAR we intentionally package
+target/*
+!target/user-management-api.jar
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
