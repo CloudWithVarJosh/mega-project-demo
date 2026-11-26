@@ -19,9 +19,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  workflow-foundation-job:
-    name: Workflow Foundation
+  trivy-scan-job:
+    name: Repository Security Scan
     runs-on: ubuntu-26.04
+
     steps:
       - name: Checkout source code
         uses: actions/checkout@v7
+
+      - name: Run Trivy repository security scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: repo
+          scan-ref: ${{ github.workspace }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
