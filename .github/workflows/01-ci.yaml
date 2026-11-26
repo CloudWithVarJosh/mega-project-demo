@@ -220,3 +220,71 @@ jobs:
             -Dsonar.exclusions=**/*.test.jsx,src/test-setup.js
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
             -Dsonar.qualitygate.wait=true
+
+      - name: Upload frontend build
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-dist
+          path: cwvj-3tier-mega-project/frontend/dist
+          if-no-files-found: error
+
+  frontend-image-build-scan-job:
+    name: Build and Scan Frontend Container Image
+    runs-on: ubuntu-26.04
+    needs: frontend-job
+
+    steps:
+      # Checkout the repository so the Dockerfile and package.json are available.
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+      # Download the exact frontend build produced and validated by the frontend job.
+      - name: Download frontend build
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-dist
+          path: cwvj-3tier-mega-project/frontend/dist
+
+      # Verify that the frontend build artifact is available.
+      - name: Verify frontend build
+        working-directory: cwvj-3tier-mega-project/frontend
+        run: ls -lah dist
+
+      # Read the application version from package.json.
+      - name: Read application version
+        id: app-version
+        working-directory: cwvj-3tier-mega-project/frontend
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      # Generate a readable image tag using the application version and short commit SHA.
+      - name: Generate image tag
+        id: image-tag
+        env:
+          APP_VERSION: ${{ steps.app-version.outputs.version }}
+        run: |
+          IMAGE_TAG="${APP_VERSION}-${GITHUB_SHA::7}"
+          echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+      # Build the frontend container image using the validated frontend build artifact.
+      - name: Build frontend container image
+        uses: docker/build-push-action@v7
+        with:
+          context: cwvj-3tier-mega-project/frontend
+          file: cwvj-3tier-mega-project/frontend/Dockerfile
+          tags: cwvj-mega-frontend:${{ steps.image-tag.outputs.image_tag }}
+          load: true
+
+      # Display the locally built container image for verification.
+      - name: Verify frontend container image
+        run: docker images cwvj-mega-frontend
+
+      # Scan the container image for HIGH and CRITICAL vulnerabilities.
+      - name: Scan frontend container image with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: image
+          image-ref: cwvj-mega-frontend:${{ steps.image-tag.outputs.image_tag }}
+          severity: HIGH,CRITICAL
+          exit-code: '1'
