@@ -34,3 +34,84 @@ jobs:
           scan-ref: ${{ github.workspace }}
           severity: HIGH,CRITICAL
           exit-code: '1'
+
+backend-job:
+    name: Backend Build and Test
+    runs-on: ubuntu-26.04
+    needs: trivy-scan-job
+
+    defaults:
+      run:
+        working-directory: cwvj-3tier-mega-project/backend
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+      - name: Set up Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: cwvj-3tier-mega-project/backend/pom.xml
+
+      - name: Verify Java version
+        run: java --version
+
+      - name: Build, test, and package backend
+        run: mvn --batch-mode clean verify
+
+      - name: Inspect backend build outputs
+        run: |
+          echo "=== Maven Build Outputs ==="
+          ls -lah target/
+
+          echo "=== Unit Test Reports ==="
+          ls -lah target/surefire-reports/
+
+          echo "=== JaCoCo Coverage Reports ==="
+          ls -lah target/site/jacoco/
+
+  frontend-job:
+    name: Frontend Build and Test
+    runs-on: ubuntu-26.04
+    needs: trivy-scan-job
+
+    defaults:
+      run:
+        working-directory: cwvj-3tier-mega-project/frontend
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: cwvj-3tier-mega-project/frontend/package-lock.json
+
+      - name: Verify Node.js and npm versions
+        run: |
+          node --version
+          npm --version
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend application
+        run: npm run build
+
+      - name: Run frontend tests and generate coverage
+        run: npm run test:coverage
+
+      - name: Inspect frontend build and test outputs
+        run: |
+          echo "=== Frontend Build Outputs ==="
+          ls -lah dist/
+
+          echo "=== Frontend Coverage Reports ==="
+          ls -lah coverage/
+          ls -lah coverage/lcov.info
