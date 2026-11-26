@@ -35,43 +35,43 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
 
-backend-job:
-    name: Backend Build and Test
-    runs-on: ubuntu-26.04
-    needs: trivy-scan-job
+  backend-job:
+      name: Backend Build and Test
+      runs-on: ubuntu-26.04
+      needs: trivy-scan-job
 
-    defaults:
-      run:
-        working-directory: cwvj-3tier-mega-project/backend
+      defaults:
+        run:
+          working-directory: cwvj-3tier-mega-project/backend
 
-    steps:
-      - name: Checkout source code
-        uses: actions/checkout@v7
+      steps:
+        - name: Checkout source code
+          uses: actions/checkout@v7
 
-      - name: Set up Java
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
-          cache-dependency-path: cwvj-3tier-mega-project/backend/pom.xml
+        - name: Set up Java
+          uses: actions/setup-java@v6
+          with:
+            distribution: temurin
+            java-version: '21'
+            cache: maven
+            cache-dependency-path: cwvj-3tier-mega-project/backend/pom.xml
 
-      - name: Verify Java version
-        run: java --version
+        - name: Verify Java version
+          run: java --version
 
-      - name: Build, test, and package backend
-        run: mvn --batch-mode clean verify
+        - name: Build, test, and package backend
+          run: mvn --batch-mode clean verify
 
-      - name: Inspect backend build outputs
-        run: |
-          echo "=== Maven Build Outputs ==="
-          ls -lah target/
+        - name: Inspect backend build outputs
+          run: |
+            echo "=== Maven Build Outputs ==="
+            ls -lah target/
 
-          echo "=== Unit Test Reports ==="
-          ls -lah target/surefire-reports/
+            echo "=== Unit Test Reports ==="
+            ls -lah target/surefire-reports/
 
-          echo "=== JaCoCo Coverage Reports ==="
-          ls -lah target/site/jacoco/
+            echo "=== JaCoCo Coverage Reports ==="
+            ls -lah target/site/jacoco/
 
   frontend-job:
     name: Frontend Build and Test
