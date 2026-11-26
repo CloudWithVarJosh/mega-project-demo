@@ -13,7 +13,7 @@ metadata:
   annotations:
     description: "Spring Boot backend API"
 spec:
-  replicas: 2
+  replicas: 4
   selector:
     matchLabels:
       app.kubernetes.io/name: cwvj-mega-project
