@@ -93,6 +93,9 @@ jobs:
     name: Build and Scan Backend Container Image
     runs-on: ubuntu-26.04
     needs: backend-job
+    
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.image_tag }}
 
     steps:
       # Checkout the repository so the Dockerfile and pom.xml are available.
@@ -161,6 +164,87 @@ jobs:
           image-ref: cwvj-mega-backend:${{ steps.image-tag.outputs.image_tag }}
           severity: HIGH,CRITICAL
           exit-code: '1'
+
+      # Save the exact image that passed the security scan as a Docker archive.
+      - name: Save backend container image
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.image_tag }}
+        run: |
+          docker save \
+            -o cwvj-mega-backend.tar \
+            "cwvj-mega-backend:${IMAGE_TAG}"
+
+      # Upload the exact scanned image so a later job can use the same image.
+      - name: Upload backend container image
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-container-image
+          path: cwvj-mega-backend.tar
+          if-no-files-found: error
+
+  backend-ecr-push-job:
+    name: Push Backend Image to Amazon ECR
+    runs-on: ubuntu-26.04
+    needs: backend-image-build-scan-job
+    if: github.event_name == 'push'
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download backend container image
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-container-image
+          path: .
+
+      # Load the exact Docker image produced and scanned by the previous job.
+      - name: Load backend container image
+        run: docker load -i cwvj-mega-backend.tar
+
+      # Verify that the expected image and tag are available.
+      - name: Verify backend container image
+        env:
+          IMAGE_TAG: ${{ needs.backend-image-build-scan-job.outputs.image-tag }}
+        run: docker image inspect "cwvj-mega-backend:${IMAGE_TAG}"
+
+      # Authenticate to AWS using GitHub OIDC and the IAM role created earlier.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Authenticate Docker with the Amazon ECR registry.
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password \
+            --region "${{ vars.AWS_REGION }}" \
+            | docker login \
+                --username AWS \
+                --password-stdin \
+                "${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+      # Tag the local image with its ECR repository name while preserving the existing image tag.
+      - name: Tag backend image for Amazon ECR
+        env:
+          IMAGE_TAG: ${{ needs.backend-image-build-scan-job.outputs.image-tag }}
+        run: |
+          ECR_REGISTRY="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+          docker tag \
+            "cwvj-mega-backend:${IMAGE_TAG}" \
+            "${ECR_REGISTRY}/cwvj-mega-backend:${IMAGE_TAG}"
+
+      # Push the exact image that was built and scanned earlier.
+      - name: Push backend image to Amazon ECR
+        env:
+          IMAGE_TAG: ${{ needs.backend-image-build-scan-job.outputs.image-tag }}
+        run: |
+          ECR_REGISTRY="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+          docker push \
+            "${ECR_REGISTRY}/cwvj-mega-backend:${IMAGE_TAG}"
 
   frontend-job:
     name: Frontend Build and Test
@@ -233,6 +317,9 @@ jobs:
     runs-on: ubuntu-26.04
     needs: frontend-job
 
+    outputs:
+      image-tag: ${{ steps.image-tag.outputs.image_tag }}
+
     steps:
       # Checkout the repository so the Dockerfile and package.json are available.
       - name: Checkout source code
@@ -288,3 +375,82 @@ jobs:
           image-ref: cwvj-mega-frontend:${{ steps.image-tag.outputs.image_tag }}
           severity: HIGH,CRITICAL
           exit-code: '1'
+
+      # Save the exact image that passed the security scan as a Docker archive.
+      - name: Save frontend container image
+        env:
+          IMAGE_TAG: ${{ steps.image-tag.outputs.image_tag }}
+        run: |
+          docker save \
+            -o cwvj-mega-frontend.tar \
+            "cwvj-mega-frontend:${IMAGE_TAG}"
+
+      # Upload the exact scanned image so a later job can use the same image.
+      - name: Upload frontend container image
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-container-image
+          path: cwvj-mega-frontend.tar
+          if-no-files-found: error
+
+  frontend-ecr-push-job:
+    name: Push Frontend Image to Amazon ECR
+    runs-on: ubuntu-26.04
+    needs: frontend-image-build-scan-job
+    if: github.event_name == 'push'
+
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download frontend container image
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-container-image
+          path: .
+
+      # Load the exact Docker image produced and scanned by the previous job.
+      - name: Load frontend container image
+        run: docker load -i cwvj-mega-frontend.tar
+
+      # Verify that the expected image and tag are available.
+      - name: Verify frontend container image
+        run: docker images cwvj-mega-frontend
+
+      # Authenticate to AWS using GitHub OIDC and the IAM role created earlier.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      # Authenticate Docker with the Amazon ECR registry.
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password \
+            --region "${{ vars.AWS_REGION }}" \
+            | docker login \
+                --username AWS \
+                --password-stdin \
+                "${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+      # Tag the local image for the frontend ECR repository.
+      - name: Tag frontend image for Amazon ECR
+        env:
+          IMAGE_TAG: ${{ needs.frontend-image-build-scan-job.outputs.image-tag }}
+        run: |
+          ECR_REGISTRY="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+          docker tag \
+            "cwvj-mega-frontend:${IMAGE_TAG}" \
+            "${ECR_REGISTRY}/cwvj-mega-frontend:${IMAGE_TAG}"
+
+      # Push the exact image that was built and scanned earlier.
+      - name: Push frontend image to Amazon ECR
+        env:
+          IMAGE_TAG: ${{ needs.frontend-image-build-scan-job.outputs.image-tag }}
+        run: |
+          ECR_REGISTRY="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+
+          docker push \
+            "${ECR_REGISTRY}/cwvj-mega-frontend:${IMAGE_TAG}"
